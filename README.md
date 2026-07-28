@@ -11,6 +11,7 @@ Internal time tracking tool for the Woven Research & Insights team. Tracks time 
 - **Reports** — Time by user, project, client, or period (Daily / Weekly / Monthly, with business-day TAT per project), with budget vs. logged hours visualization, CSV export, and a report delivery calendar view showing delivered/upcoming report dates; "Users Assigned" reflects project membership, not just users who've logged time
 - **Workspaces** — Each team gets an isolated workspace; users can belong to multiple workspaces; any authenticated user can create a new workspace (becoming its admin); new sign-ups can alternatively join an existing workspace that already has a member sharing their email domain, joining as a regular member. Each page has its own URL route
 - **Settings (Admin)** — Workspace admins manage project types, workspace users/roles, and clients & contacts; a super admin (configured via `SUPER_ADMIN_EMAIL`) can additionally manage all workspaces org-wide
+- **Daily backup email** — Every day at 08:00 IST, the server emails a full workbook (all projects + all timesheet entries across every workspace) as an `.xlsx` attachment to a fixed recipient (`BACKUP_RECIPIENT` in `server.js`); a super admin can also trigger it on demand via `POST /api/admin/send-backup-now` (no dedicated UI button — this is an operational/API-only endpoint). Sends via Microsoft Graph `sendMail` when Azure SSO is configured (trying each configured `SUPER_ADMIN_EMAIL` address as the sender until one succeeds), falling back to SMTP otherwise; requires the sending mailbox to actually exist and have `Mail.Send` access in the tenant (see #126)
 - **Microsoft SSO** — Azure AD OAuth2 login restricted to the configured tenant domain; dev-login fallback when credentials are not configured
 
 ## Tech Stack
@@ -174,7 +175,8 @@ Reload Caddy after editing the Caddyfile.
 2. Set Redirect URI to `https://your-domain/auth/callback`
 3. Under **Certificates & secrets**, create a new client secret
 4. Copy the **Tenant ID**, **Application (client) ID**, and **Secret value** into `.env`
-5. Under **API permissions**, ensure `User.Read` (Microsoft Graph) is granted
+5. Under **API permissions**, ensure `User.Read` (Microsoft Graph, delegated) is granted for login
+6. To enable project-assignment and daily backup emails, also add the **application** permission `Mail.Send` (Microsoft Graph) and grant admin consent — these are sent app-only via the client-credentials flow (`getGraphToken()` in `server.js`), not on behalf of the logged-in user, so the sending mailbox (a `SUPER_ADMIN_EMAIL` address) must be a real, licensed mailbox the app registration is allowed to send as; an Exchange **Application Access Policy** can scope which mailboxes `Mail.Send` is allowed to use (see #126)
 
 ## Project Structure
 
