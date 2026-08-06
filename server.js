@@ -854,6 +854,11 @@ app.delete('/api/workspace-users/:userId', (req, res) => {
     )
   `).run(req.params.userId, req.workspaceId)
   db.prepare('DELETE FROM workspace_members WHERE user_id = ? AND workspace_id = ?').run(req.params.userId, req.workspaceId)
+  db.prepare(`
+    DELETE FROM project_members WHERE user_id = ? AND project_id IN (
+      SELECT id FROM projects WHERE workspace_id = ?
+    )
+  `).run(req.params.userId, req.workspaceId)
   res.json({ success: true })
 })
 
