@@ -3,9 +3,10 @@
 # /opt/alternative-ens-deployment/nginx.production.conf on the host — NOT the
 # Caddy setup or the host's own /etc/nginx described elsewhere in this repo's
 # history, both of which turned out to be unrelated) via an upstream named
-# time_tracking. As of 2026-07-22 that upstream still points at PM2 on
-# 127.0.0.1:3007, not this container — see issue history for the in-progress
-# cutover. This container publishes on host port 3009 (NOT 3002 — 3002 is
+# time_tracking. That upstream now points at this container on
+# 127.0.0.1:3009 (cutover from PM2 completed and verified 2026-07-22 — see
+# the "Restart nginx-proxy to fix the stale bind mount, verify everything"
+# commit). This container publishes on host port 3009 (NOT 3002 — 3002 is
 # already claimed by a different upstream, salesforce_lens_web, on this same
 # nginx; reusing it would make lens.nativeworld.com serve this app too).
 # PM2 (ecosystem.config.cjs) is kept only as a fallback; do not repoint this

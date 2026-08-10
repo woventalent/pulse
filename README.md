@@ -24,7 +24,7 @@ Internal time tracking tool for the Woven Research & Insights team. Tracks time 
 | Auth | Azure AD OAuth2 + custom SQLite sessions |
 | File uploads | multer (stored in `uploads/`) |
 | Containerization | Docker + Docker Compose (`autoheal` for health-based restarts); PM2 supported as a legacy alternative |
-| Reverse proxy | Caddy (with Let's Encrypt SSL) |
+| Reverse proxy | Shared `nginx-proxy` container on the host (`--network host`, config outside this repo — routes several unrelated domains besides this app) |
 
 > **Node 22+ required** — the `node:sqlite` built-in is only available from Node 22 onwards.
 
@@ -85,11 +85,11 @@ docker compose logs -f app        # tail logs
 docker compose ps                 # check health status
 ```
 
-The container listens on `3000` internally and is published on host port `3002`. Caddy's `reverse_proxy` on production points at `172.18.0.1:3002` (see [Caddy](#caddy) below). **Do not repoint `ports:` to `3001:3000`** — `3001` is the port the legacy PM2 setup binds, and an earlier version of this file did exactly that; the resulting port fight sent PM2's process into a crash-restart loop on production (see #103). PM2 is not expected to be running on the production host anymore, but the port stays reserved as a guardrail in case it's ever brought back as a fallback.
+The container listens on `3000` internally and is published on host port `3009`. Production traffic is routed by a separate, shared `nginx-proxy` container (`--network host`, config at `/opt/alternative-ens-deployment/nginx.production.conf` on the host — not part of this repo, and not Caddy despite earlier docs here saying so) whose `time_tracking` upstream points at `127.0.0.1:3009` (see [nginx-proxy](#nginx-proxy) below). **Before repointing `ports:` to a different host port**, check that nginx config first — `3002` is already claimed by an unrelated site (`salesforce_lens_web` / lens.nativeworld.com) and `3007` was the legacy PM2 port; colliding with either has previously taken production down (see #103, and the "Disable deploy.yml auto-trigger" commit for a second incident where stopping what looked like a stale container on a shared port took the *real* production container down for ~2 hours).
 
-**Production deployment (current):** the GitHub Actions workflow (`.github/workflows/deploy.yml`) deploys automatically on every push to `main` — it rsyncs the repo to `/var/www/time-tracking/` on the server, runs `docker compose up -d --build --remove-orphans`, and then polls `docker inspect`'s health status until the container reports `healthy` (failing the workflow and dumping the last 100 log lines if it doesn't within ~2 minutes). No manual steps are needed for a normal deploy — just push to `main`.
+**Production deployment (current):** the GitHub Actions workflow (`.github/workflows/deploy.yml`) is **manual-trigger only** (`workflow_dispatch`) — it is *not* wired to run on every push to `main`, despite what earlier revisions of this doc said. The `push: branches: [main]` trigger was disabled after the incident above and has been left disabled deliberately; re-enable it only once this deploy path has run stably for a while. To deploy, run the "Deploy to Production" workflow manually (Actions tab → Deploy to Production → Run workflow, on `main`). Once triggered, it rsyncs the repo to `/var/www/time-tracking/` on the server, runs `docker compose up -d --build --remove-orphans`, and polls `docker inspect`'s health status until the container reports `healthy` (failing the workflow and dumping the last 100 log lines if it doesn't within ~2 minutes).
 
-**Migrating an existing PM2 deployment to Docker (already done in production, kept here for reference):** stop and remove the PM2 process first — `pm2 delete woven-time-tracking` — then run `docker compose up -d --build` from `/var/www/time-tracking`, and update Caddy's `reverse_proxy` target from `172.18.0.1:3001` to `172.18.0.1:3002` (see [Caddy](#caddy) below). The SQLite DB isn't shared automatically; to carry over existing data, copy the old `timetracking.db` and `uploads/` into the new named volumes before first start (e.g. `docker run --rm -v woven-time-tracking_db-data:/data -v /var/www/time-tracking:/old alpine cp /old/timetracking.db /data/timetracking.db`, similarly for `uploads-data`).
+**Migrating an existing PM2 deployment to Docker (already done in production, kept here for reference):** stop and remove the PM2 process first — `pm2 delete woven-time-tracking` — then run `docker compose up -d --build` from `/var/www/time-tracking`, and repoint the `time_tracking` upstream in the shared nginx-proxy config from PM2's port to this container's port (see [nginx-proxy](#nginx-proxy) below). The SQLite DB isn't shared automatically; to carry over existing data, copy the old `timetracking.db` and `uploads/` into the new named volumes before first start (e.g. `docker run --rm -v woven-time-tracking_db-data:/data -v /var/www/time-tracking:/old alpine cp /old/timetracking.db /data/timetracking.db`, similarly for `uploads-data`).
 
 ### Deploying to the server (PM2, legacy fallback)
 
@@ -107,7 +107,7 @@ npm run build
 pm2 restart woven-time-tracking
 ```
 
-See [PM2 & Caddy](#pm2--caddy) for full server setup.
+See [PM2 & nginx-proxy](#pm2--nginx-proxy) for full server setup.
 
 ## Environment Variables
 
@@ -131,7 +131,7 @@ If `AZURE_CLIENT_ID` is not set, the app falls back to a dev-login form.
 
 `GET /api/health` returns `{ status: 'ok' }` and requires no auth — used by the Docker `HEALTHCHECK` and any external uptime monitor.
 
-## PM2 & Caddy
+## PM2 & nginx-proxy
 
 ### PM2 (`ecosystem.config.cjs`) — legacy fallback
 
@@ -149,25 +149,25 @@ The app must be started with `--experimental-sqlite`:
 node_args: '--experimental-sqlite'
 ```
 
-### Caddy
+### nginx-proxy
 
-Production's Caddyfile points at the Docker container's published port, `3002`:
+Production is **not** fronted by Caddy, despite what earlier revisions of this README said — that was an earlier session's incorrect assumption, later corrected after reading the real config on the host. Traffic for every domain on this host, including `time.woventalent.in`, is routed by a single shared `nginx-proxy` container running with `--network host`, configured at `/opt/alternative-ens-deployment/nginx.production.conf` (outside this repo, independently managed). The relevant upstream block:
 
 ```
-your-production-domain.example.com {
-    reverse_proxy 172.18.0.1:3002
+upstream time_tracking {
+    server 127.0.0.1:3009;   # this app's Docker container (see docker-compose.yml)
 }
 ```
 
-If falling back to the legacy PM2 path, repoint this at `172.18.0.1:3001` instead (PM2's port) — the two paths must never run against the same port at the same time (see [Docker (production)](#docker-production) above and #103).
+If falling back to the legacy PM2 path, that upstream line is the one to repoint — back to `127.0.0.1:3007` (PM2's port). **Never** point it at a port another upstream on this same shared proxy already uses (e.g. `3002` serves an unrelated site, `salesforce_lens_web` / lens.nativeworld.com) — and never assume a container holding a port is "stale" without checking what it actually serves first; doing so once took the real production container down for ~2 hours (see the "Disable deploy.yml auto-trigger" commit).
 
-If Caddy runs inside Docker, allow the Docker subnet through the firewall for whichever port is in use:
+After editing the config, validate before reloading:
 
 ```bash
-ufw allow from 172.18.0.0/16 to any port 3002
+docker exec nginx-proxy nginx -t && docker exec nginx-proxy nginx -s reload
 ```
 
-Reload Caddy after editing the Caddyfile.
+A full `docker restart nginx-proxy` (rather than a graceful reload) briefly interrupts every other site on the shared proxy, not just this one — prefer `nginx -s reload` unless a restart is specifically required (e.g. to reattach a detached bind mount).
 
 ## Microsoft SSO Setup (Azure AD)
 
@@ -201,7 +201,7 @@ Reload Caddy after editing the Caddyfile.
 ├── Dockerfile                # Multi-stage build (frontend build + production runtime)
 ├── docker-compose.yml        # App + autoheal, persistent DB/uploads volumes — current production deployment
 ├── ecosystem.config.cjs      # PM2 config (legacy fallback, not used in production)
-├── .github/workflows/deploy.yml  # Deploys to Docker on the production host on every push to main
+├── .github/workflows/deploy.yml  # Deploys to Docker on the production host — manual trigger only (workflow_dispatch), see Production Build & Deployment
 ├── .env.example
 └── package.json
 ```
