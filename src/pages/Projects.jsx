@@ -112,6 +112,12 @@ export default function Projects() {
       (p.requestor_name || '').toLowerCase().includes(q)
   })
 
+  const statusCounts = {
+    all:       projects.length,
+    active:    projects.filter(p => p.status === 'active').length,
+    completed: projects.filter(p => p.status === 'completed').length,
+  }
+
   const SORTABLE_COLUMNS = { request_date: 'Request Date' }
 
   function toggleSort(col) {
@@ -185,11 +191,19 @@ export default function Projects() {
         <div style={{ display: 'flex', borderRadius: 7, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
           {[['all', 'All'], ['active', 'Active'], ['completed', 'Completed']].map(([id, label]) => (
             <button key={id} onClick={() => setStatusTab(id)} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
               padding: '8px 16px', border: 'none', fontSize: 13.5, fontWeight: 500,
               background: statusTab === id ? '#2563eb' : '#fff',
               color:      statusTab === id ? '#fff'    : '#475569',
               cursor: 'pointer',
-            }}>{label}</button>
+            }}>
+              {label}
+              <span style={{
+                fontSize: 11.5, fontWeight: 700, padding: '1px 7px', borderRadius: 20,
+                background: statusTab === id ? 'rgba(255,255,255,0.25)' : '#f1f5f9',
+                color:      statusTab === id ? '#fff' : '#64748b',
+              }}>{statusCounts[id]}</span>
+            </button>
           ))}
         </div>
         <input
