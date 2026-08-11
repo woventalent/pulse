@@ -102,8 +102,7 @@ export default function Projects() {
   }
 
   const filtered = projects.filter(p => {
-    if (statusTab === 'active' && p.status !== 'active') return false
-    if (statusTab === 'completed' && p.status !== 'completed') return false
+    if (statusTab !== 'all' && p.status !== statusTab) return false
     if (!search) return true
     const q = search.toLowerCase()
     return p.project_code.toLowerCase().includes(q) ||
@@ -116,6 +115,8 @@ export default function Projects() {
     all:       projects.length,
     active:    projects.filter(p => p.status === 'active').length,
     completed: projects.filter(p => p.status === 'completed').length,
+    on_hold:   projects.filter(p => p.status === 'on_hold').length,
+    cancelled: projects.filter(p => p.status === 'cancelled').length,
   }
 
   const SORTABLE_COLUMNS = { request_date: 'Request Date' }
@@ -189,7 +190,7 @@ export default function Projects() {
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ display: 'flex', borderRadius: 7, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-          {[['all', 'All'], ['active', 'Active'], ['completed', 'Completed']].map(([id, label]) => (
+          {[['all', 'All'], ['active', 'Active'], ['completed', 'Completed'], ['on_hold', 'On Hold'], ['cancelled', 'Cancelled']].map(([id, label]) => (
             <button key={id} onClick={() => setStatusTab(id)} style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '8px 16px', border: 'none', fontSize: 13.5, fontWeight: 500,

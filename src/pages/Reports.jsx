@@ -157,7 +157,7 @@ export default function Reports() {
         </div>
         {view === 'project' && (
           <div style={{ display: 'flex', borderRadius: 7, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-            {[['all', 'All'], ['active', 'Active'], ['completed', 'Completed']].map(([id, label]) => (
+            {[['all', 'All'], ['active', 'Active'], ['completed', 'Completed'], ['on_hold', 'On Hold'], ['cancelled', 'Cancelled']].map(([id, label]) => (
               <button key={id} onClick={() => setStatusTab(id)} style={{
                 padding: '8px 16px', border: 'none', fontSize: 13.5, fontWeight: 500,
                 background: statusTab === id ? '#2563eb' : '#fff',
