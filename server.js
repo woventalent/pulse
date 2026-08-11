@@ -807,12 +807,13 @@ app.delete('/api/requestors/:id', (req, res) => {
 app.get('/api/workspace-users', (req, res) => {
   res.json(db.prepare(`
     SELECT u.*, wm.role,
-      COUNT(DISTINCT pm.project_id) as project_count
+      COUNT(DISTINCT p.id) as project_count
     FROM users u
     JOIN workspace_members wm ON wm.user_id = u.id AND wm.workspace_id = ?
     LEFT JOIN project_members pm ON pm.user_id = u.id
+    LEFT JOIN projects p ON p.id = pm.project_id AND p.workspace_id = ?
     GROUP BY u.id ORDER BY u.name
-  `).all(req.workspaceId))
+  `).all(req.workspaceId, req.workspaceId))
 })
 
 app.post('/api/workspace-users', (req, res) => {
