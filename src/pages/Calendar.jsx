@@ -35,7 +35,10 @@ export default function Calendar() {
       if (!p.report_delivered) continue
       const key = p.report_delivered
       const future = key > todayKey
-      const status = future ? 'upcoming' : p.status === 'completed' ? 'delivered' : 'overdue'
+      const status = p.status === 'cancelled' ? 'cancelled'
+        : future ? 'upcoming'
+        : p.status === 'completed' ? 'delivered'
+        : 'overdue'
       const entry = { id: p.id, name: p.name, client: p.client_name, status }
       ;(map[key] ||= []).push(entry)
     }
@@ -99,9 +102,10 @@ export default function Calendar() {
                       upcoming: { bg: '#eff6ff', fg: '#2563eb' },
                       delivered: { bg: '#f0fdf4', fg: '#16a34a' },
                       overdue: { bg: '#fef2f2', fg: '#ef4444' },
+                      cancelled: { bg: '#f1f5f9', fg: '#64748b' },
                     }[it.status]
                     return (
-                      <div key={it.id} title={`${it.name} — ${it.client || 'No client'}${it.status === 'overdue' ? ' (overdue)' : ''}`} style={{
+                      <div key={it.id} title={`${it.name} — ${it.client || 'No client'}${it.status === 'overdue' ? ' (overdue)' : it.status === 'cancelled' ? ' (cancelled)' : ''}`} style={{
                         fontSize: 11, padding: '3px 6px', borderRadius: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         background: palette.bg, color: palette.fg, fontWeight: 600,
                       }}>
