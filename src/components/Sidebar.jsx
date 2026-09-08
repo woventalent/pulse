@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import Modal from './Modal.jsx'
+import PulseLogo from './PulseLogo.jsx'
 
 const NAV = [
   { id: 'projects',   label: 'Projects',   Icon: FolderIcon },
@@ -102,8 +103,11 @@ export default function Sidebar({ current, onNav }) {
       display: 'flex', flexDirection: 'column',
       position: 'relative',
     }}>
-      {/* Header — workspace switcher */}
+      {/* Header — logo + workspace switcher */}
       <div style={{ padding: '18px 18px 14px', borderBottom: '1px solid #1e293b', position: 'relative' }}>
+        <div style={{ marginBottom: 14 }}>
+          <PulseLogo size="sm" theme="dark" />
+        </div>
         <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
           Workspace
         </div>
@@ -112,7 +116,7 @@ export default function Sidebar({ current, onNav }) {
           cursor: 'pointer', padding: 0, textAlign: 'left', width: '100%',
         }}>
           <span style={{ color: '#f1f5f9', fontWeight: 700, fontSize: 14, lineHeight: 1.3, flex: 1 }}>
-            {workspace?.name || 'Woven'}
+            {workspace?.name || 'Pulse'}
           </span>
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth={2}>
             <polyline points="6 9 12 15 18 9"/>

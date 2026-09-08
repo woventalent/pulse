@@ -11,7 +11,7 @@ if (fs.existsSync(envFile)) {
 }
 module.exports = {
   apps: [{
-    name: 'woven-time-tracking',
+    name: 'pulse',
     script: '/var/www/time-tracking/server.js',
     cwd: '/var/www/time-tracking',
     node_args: '--experimental-sqlite',

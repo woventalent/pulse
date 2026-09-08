@@ -16,7 +16,7 @@ function LoadingScreen() {
       background: '#0f172a',
     }}>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#f8fafc', marginBottom: 8 }}>Woven</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: '#f8fafc', marginBottom: 8 }}>Pulse</div>
         <div style={{ fontSize: 13, color: '#475569' }}>Loading…</div>
       </div>
     </div>

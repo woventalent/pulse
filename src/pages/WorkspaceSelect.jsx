@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import Modal from '../components/Modal.jsx'
+import PulseLogo from '../components/PulseLogo.jsx'
 
 export default function WorkspaceSelect() {
   const { user, selectWorkspace, refresh } = useAuth()
@@ -71,7 +72,7 @@ export default function WorkspaceSelect() {
         background: '#fff', borderRadius: 16, padding: '44px 48px',
         width: 440, boxShadow: '0 32px 80px rgba(0,0,0,0.15)',
       }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#00259C', marginBottom: 4 }}>Woven</div>
+        <div style={{ marginBottom: 16 }}><PulseLogo size="md" theme="light" /></div>
         <p style={{ color: '#64748b', fontSize: 14, marginBottom: 28 }}>
           Hi {user?.name?.split(' ')[0]} — select a workspace to continue.
         </p>

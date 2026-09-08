@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext.jsx'
+import PulseLogo from '../components/PulseLogo.jsx'
 
 function MicrosoftLogo() {
   return (
@@ -52,13 +53,12 @@ export default function Login({ errorMsg }) {
       }}>
         {/* Logo */}
         <div style={{ marginBottom: 32 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#00259C', letterSpacing: '-0.5px' }}>Woven</div>
-          <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>Time Tracking</div>
+          <PulseLogo size="md" theme="light" />
         </div>
 
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#00259C', marginBottom: 6 }}>Sign in</h2>
         <p style={{ fontSize: 14, color: '#64748b', marginBottom: 28 }}>
-          {msAuth ? 'Use your Woven Microsoft account to continue.' : 'Development mode — enter any name and email.'}
+          {msAuth ? 'Use your Microsoft account to continue.' : 'Development mode — enter any name and email.'}
         </p>
 
         {error && (
