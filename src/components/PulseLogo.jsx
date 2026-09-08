@@ -8,9 +8,15 @@ export default function PulseLogo({ size = 'md', theme = 'light' }) {
       {/* Icon: circle with EKG pulse line */}
       <svg width={Math.round(34 * s)} height={Math.round(34 * s)} viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
         <circle cx="17" cy="17" r="17" fill="#2563eb"/>
+        {/* Clock tick marks at 12, 3, 6, 9 */}
+        <line x1="17" y1="2.5" x2="17" y2="6" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+        <line x1="31.5" y1="17" x2="28" y2="17" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+        <line x1="17" y1="31.5" x2="17" y2="28" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+        <line x1="2.5" y1="17" x2="6" y2="17" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+        {/* EKG pulse line */}
         <path
-          d="M4 17 L9 17 L11.5 11 L14 23 L16.5 7 L19 27 L21.5 17 L30 17"
-          stroke="white" strokeWidth="2.2" fill="none"
+          d="M7 17 L10.5 17 L12.5 13 L15 22 L17 9 L19 25 L21.5 17 L27 17"
+          stroke="white" strokeWidth="2.1" fill="none"
           strokeLinecap="round" strokeLinejoin="round"
         />
       </svg>
