@@ -2,6 +2,9 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 
 const AuthContext = createContext(null)
 
+const bypassSSO =
+  import.meta.env.DEV && import.meta.env.VITE_BYPASS_SSO === 'true'
+
 export function AuthProvider({ children }) {
   const [user,      setUser]      = useState(undefined) // undefined = loading
   const [workspace, setWorkspace] = useState(null)
@@ -12,10 +15,22 @@ export function AuthProvider({ children }) {
       fetch('/api/auth/me'),
       fetch('/api/config'),
     ])
-    const me  = await meRes.json()
+    let me  = await meRes.json()
     const cfg = await cfgRes.json()
 
     setMsAuth(cfg.msAuthEnabled)
+
+    if (bypassSSO && !me) {
+      await fetch('/auth/dev-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: (import.meta.env.VITE_FORCE_LOGIN_EMAIL || 'dev@local').toLowerCase(),
+          name: import.meta.env.VITE_FORCE_LOGIN_NAME || 'Dev User',
+        }),
+      })
+      me = await (await fetch('/api/auth/me')).json()
+    }
 
     if (!me) {
       setUser(null)
@@ -32,6 +47,10 @@ export function AuthProvider({ children }) {
   useEffect(() => { refresh() }, [refresh])
 
   async function logout() {
+    if (bypassSSO) {
+      alert('SSO is bypassed locally. Cannot logout.')
+      return
+    }
     await fetch('/auth/logout', { method: 'POST' })
     setUser(null)
     setWorkspace(null)
@@ -47,7 +66,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, workspace, msAuth, refresh, logout, selectWorkspace }}>
+    <AuthContext.Provider value={{ user, workspace, msAuth, bypassSSO, refresh, logout, selectWorkspace }}>
       {children}
     </AuthContext.Provider>
   )

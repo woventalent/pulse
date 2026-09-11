@@ -14,7 +14,7 @@ function MicrosoftLogo() {
 }
 
 export default function Login({ errorMsg }) {
-  const { msAuth, refresh } = useAuth()
+  const { msAuth, bypassSSO, refresh } = useAuth()
 
   const [form,    setForm]    = useState({ name: '', email: '' })
   const [error,   setError]   = useState(errorMsg || '')
@@ -58,7 +58,11 @@ export default function Login({ errorMsg }) {
 
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#00259C', marginBottom: 6 }}>Sign in</h2>
         <p style={{ fontSize: 14, color: '#64748b', marginBottom: 28 }}>
-          {msAuth ? 'Use your Microsoft account to continue.' : 'Development mode — enter any name and email.'}
+          {bypassSSO
+            ? 'SSO bypass is on for this environment.'
+            : msAuth
+              ? 'Use your Microsoft account to continue.'
+              : 'Development mode — enter any name and email.'}
         </p>
 
         {error && (
@@ -67,7 +71,9 @@ export default function Login({ errorMsg }) {
           </div>
         )}
 
-        {msAuth ? (
+        {bypassSSO ? (
+          <p style={{ fontSize: 13, color: '#64748b' }}>Signing you in locally…</p>
+        ) : msAuth ? (
           <a
             href="/auth/login"
             style={{
@@ -121,7 +127,7 @@ export default function Login({ errorMsg }) {
           </form>
         )}
 
-        {!msAuth && (
+        {!msAuth && !bypassSSO && (
           <p style={{ fontSize: 11.5, color: '#94a3b8', textAlign: 'center', marginTop: 20 }}>
             Dev mode · Configure <code style={{ background: '#f1f5f9', padding: '1px 4px', borderRadius: 3 }}>AZURE_CLIENT_ID</code> in .env for Microsoft SSO
           </p>

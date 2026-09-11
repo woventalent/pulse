@@ -116,6 +116,9 @@ async function sendAssignmentEmail({ fromEmail, fromName, toEmail, toName, proje
 }
 
 const MS_AUTH    = !!(process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET)
+const DEV_BYPASS =
+  process.env.NODE_ENV !== 'production' &&
+  (process.env.BYPASS_SSO === 'true' || process.env.VITE_BYPASS_SSO === 'true')
 const TENANT     = process.env.AZURE_TENANT_ID || 'woventalent.in'
 const REDIRECT_URI = process.env.AUTH_REDIRECT_URI || `http://localhost:${PORT}/auth/callback`
 const SUPER_ADMIN_EMAILS = new Set(
@@ -280,6 +283,20 @@ db.exec(`
     description TEXT,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS feedback_issues (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL,
+    user_name   TEXT NOT NULL,
+    user_email  TEXT NOT NULL,
+    toolkit     TEXT NOT NULL,
+    module      TEXT NOT NULL,
+    description TEXT NOT NULL,
+    screenshots TEXT,
+    status      TEXT NOT NULL DEFAULT 'open',
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `)
 
 // ── Migrations ────────────────────────────────────────────────────────────────
@@ -399,6 +416,42 @@ function maybeElevateSuperAdmin(user) {
   }
 }
 
+function localDevIdentity() {
+  const email = (
+    process.env.DEV_LOGIN_EMAIL ||
+    process.env.VITE_FORCE_LOGIN_EMAIL ||
+    'dev@local'
+  )
+    .trim()
+    .toLowerCase()
+  const name =
+    process.env.DEV_LOGIN_NAME ||
+    process.env.VITE_FORCE_LOGIN_NAME ||
+    'Dev User'
+  return { email, name }
+}
+
+function ensureLocalDevWorkspace(userId) {
+  const existing = getUserWorkspaces(userId)
+  if (existing.length) return existing
+  let ws = db.prepare("SELECT * FROM workspaces WHERE slug = 'local'").get()
+  if (!ws) {
+    const r = db.prepare('INSERT INTO workspaces (name, slug, code_prefix) VALUES (?, ?, ?)').run('Local', 'local', 'LOC')
+    ws = { id: r.lastInsertRowid }
+  }
+  ensureWorkspaceMember(userId, ws.id, 'admin')
+  return getUserWorkspaces(userId)
+}
+
+function issueLocalDevSession(res, identity = localDevIdentity()) {
+  const user = upsertUser({ microsoftOid: null, email: identity.email, name: identity.name })
+  db.prepare("UPDATE users SET global_role = 'super_admin' WHERE id = ?").run(user.id)
+  maybeElevateSuperAdmin(user)
+  const ws = ensureLocalDevWorkspace(user.id)
+  const sessionId = createSession(user.id, ws[0]?.id ?? null)
+  setSessionCookie(res, sessionId)
+}
+
 function setSessionCookie(res, id) {
   res.cookie('wtt_session', id, {
     httpOnly: true,
@@ -409,15 +462,106 @@ function setSessionCookie(res, id) {
 }
 
 // ── Middleware ────────────────────────────────────────────────────────────────
+app.use('/api/feedback', express.json({ limit: '16mb' }))
 app.use(express.json())
 app.use(cookieParser())
 
 // ── Public ────────────────────────────────────────────────────────────────────
-app.get('/api/config', (_, res) => res.json({ msAuthEnabled: MS_AUTH }))
+app.get('/api/config', (_, res) => res.json({ msAuthEnabled: MS_AUTH && !DEV_BYPASS }))
 app.get('/api/health', (_, res) => res.json({ status: 'ok' }))
+
+function requireKonsoleKey(req, res) {
+  const expected = process.env.PULSE_ISSUES_KEY || process.env.KONSOLE_SERVICE_KEY
+  const header = req.get('X-Konsole-Service-Key') || ''
+  const auth = req.get('Authorization') || ''
+  const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : ''
+  if (!expected || (header !== expected && bearer !== expected)) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return false
+  }
+  return true
+}
+
+function parseFeedbackScreenshots(value) {
+  if (value == null || value === '') return []
+  if (Array.isArray(value)) return value.filter((item) => typeof item === 'string')
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      if (Array.isArray(parsed)) return parsed.filter((item) => typeof item === 'string')
+    } catch { /* stored as a single path */ }
+    return [value]
+  }
+  return []
+}
+
+function mapFeedbackIssue(row) {
+  return {
+    id: Number(row.id),
+    user_id: row.user_id == null ? null : Number(row.user_id),
+    user_name: row.user_name,
+    user_email: row.user_email,
+    toolkit: row.toolkit,
+    module: row.module,
+    description: row.description,
+    screenshots: parseFeedbackScreenshots(row.screenshots),
+    status: row.status,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }
+}
+
+function listKonsoleFeedbackIssues(req, res) {
+  if (!requireKonsoleKey(req, res)) return
+  const status = typeof req.query.status === 'string' ? req.query.status : ''
+  const from = typeof req.query.from === 'string' ? req.query.from : ''
+  const to = typeof req.query.to === 'string' ? req.query.to : ''
+  const where = []
+  const params = []
+  if (status) { where.push('status = ?'); params.push(status) }
+  if (from && to) { where.push('created_at >= ? AND created_at < ?'); params.push(from, to) }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+  const rows = db.prepare(
+    `SELECT * FROM feedback_issues ${whereSql} ORDER BY created_at DESC LIMIT 1000`,
+  ).all(...params)
+  const countRows = db.prepare(
+    `SELECT status, COUNT(*) AS total FROM feedback_issues ${whereSql} GROUP BY status`,
+  ).all(...params)
+  const counts = { total: 0, open: 0, in_progress: 0, resolved: 0, closed: 0 }
+  for (const row of countRows) {
+    const n = Number(row.total) || 0
+    counts.total += n
+    if (row.status in counts) counts[row.status] += n
+  }
+  res.json({ issues: rows.map(mapFeedbackIssue), counts })
+}
+
+function updateKonsoleFeedbackIssueStatus(req, res) {
+  if (!requireKonsoleKey(req, res)) return
+  const status = req.body?.status
+  if (!['open', 'in_progress', 'resolved', 'closed'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' })
+  }
+  const id = Number(req.params.id)
+  if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid issue id' })
+  const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
+  db.prepare('UPDATE feedback_issues SET status = ?, updated_at = ? WHERE id = ?').run(status, now, id)
+  const row = db.prepare('SELECT * FROM feedback_issues WHERE id = ?').get(id)
+  if (!row) return res.status(404).json({ error: 'Issue not found' })
+  res.json(mapFeedbackIssue(row))
+}
+
+app.get('/internal/feedback-issues', listKonsoleFeedbackIssues)
+app.put('/internal/feedback-issues/:id/status', updateKonsoleFeedbackIssueStatus)
+app.get('/api/internal/feedback-issues', listKonsoleFeedbackIssues)
+app.put('/api/internal/feedback-issues/:id/status', updateKonsoleFeedbackIssueStatus)
 
 // ── Auth: Microsoft SSO ───────────────────────────────────────────────────────
 app.get('/auth/login', (req, res) => {
+  if (DEV_BYPASS) {
+    issueLocalDevSession(res)
+    return res.redirect('/')
+  }
   if (!MS_AUTH) return res.redirect('/?dev-login=1')
   const state = randomBytes(16).toString('hex')
   res.cookie('ms_state', state, { httpOnly: true, maxAge: 10 * 60 * 1000 })
@@ -472,6 +616,13 @@ app.get('/auth/callback', async (req, res) => {
 })
 
 app.post('/auth/dev-login', (req, res) => {
+  if (DEV_BYPASS) {
+    const fallback = localDevIdentity()
+    const email = (req.body?.email || fallback.email).trim().toLowerCase()
+    const name = (req.body?.name || fallback.name).trim()
+    issueLocalDevSession(res, { email, name })
+    return res.json({ ok: true })
+  }
   if (MS_AUTH) return res.status(403).json({ error: 'Dev login disabled' })
   const { email, name } = req.body
   if (!email || !name) return res.status(400).json({ error: 'Email and name required' })
@@ -633,6 +784,7 @@ app.delete('/api/admin/workspaces/:id', (req, res) => {
 
 // ── Auth guard ────────────────────────────────────────────────────────────────
 app.use('/api', (req, res, next) => {
+  if (req.path.startsWith('/internal')) return next()
   const s = getSession(req.cookies?.wtt_session)
   if (!s) return res.status(401).json({ error: 'Not authenticated' })
   if (!s.workspace_id) return res.status(403).json({ error: 'No workspace selected' })
@@ -645,6 +797,48 @@ app.use('/api', (req, res, next) => {
   req.globalRole  = s.user_global_role ?? null
   req.userRole    = wm.role
   next()
+})
+
+const FEEDBACK_MODULES = new Set(['Projects', 'Timesheets', 'Reports', 'Calendar', 'Settings', 'Other'])
+const MAX_FEEDBACK_SHOTS = 8
+const MAX_FEEDBACK_SHOT_CHARS = 2.8e6
+
+app.post('/api/feedback', (req, res) => {
+  const toolkit = typeof req.body?.toolkit === 'string' ? req.body.toolkit.trim() : ''
+  const module = typeof req.body?.module === 'string' ? req.body.module.trim() : ''
+  const description = typeof req.body?.description === 'string' ? req.body.description.trim() : ''
+  if (!toolkit || !module || !description) {
+    return res.status(400).json({ error: 'Missing required fields: toolkit, module, description' })
+  }
+  if (toolkit !== 'pulse' || !FEEDBACK_MODULES.has(module)) {
+    return res.status(400).json({ error: 'Invalid toolkit or module' })
+  }
+  if (description.length > 10000) {
+    return res.status(400).json({ error: 'Description is too long' })
+  }
+  const rawShots = Array.isArray(req.body?.screenshots) ? req.body.screenshots : []
+  const screenshots = []
+  for (const item of rawShots) {
+    if (screenshots.length >= MAX_FEEDBACK_SHOTS) break
+    if (typeof item !== 'string' || !item.startsWith('data:image/')) continue
+    if (item.length > MAX_FEEDBACK_SHOT_CHARS) {
+      return res.status(400).json({ error: 'Screenshot too large (2MB max)' })
+    }
+    screenshots.push(item)
+  }
+  const r = db.prepare(
+    `INSERT INTO feedback_issues (user_id, user_name, user_email, toolkit, module, description, screenshots)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    req.userId,
+    req.userName || (req.userEmail || '').split('@')[0] || 'Unknown',
+    req.userEmail || '',
+    toolkit,
+    module,
+    description,
+    screenshots.length ? JSON.stringify(screenshots) : null,
+  )
+  res.status(201).json({ success: true, issueId: Number(r.lastInsertRowid) })
 })
 
 // ── PROJECT TYPES ─────────────────────────────────────────────────────────────
@@ -1492,5 +1686,5 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`\n  Woven Time Tracking  →  http://localhost:${PORT}`)
-  console.log(`  Auth: ${MS_AUTH ? `Microsoft SSO (${TENANT})` : 'Dev login'}\n`)
+  console.log(`  Auth: ${DEV_BYPASS ? 'SSO bypass' : MS_AUTH ? `Microsoft SSO (${TENANT})` : 'Dev login'}\n`)
 })

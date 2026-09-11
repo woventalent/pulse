@@ -8,6 +8,7 @@ import Calendar from './pages/Calendar.jsx'
 import Admin from './pages/Admin.jsx'
 import Login from './pages/Login.jsx'
 import WorkspaceSelect from './pages/WorkspaceSelect.jsx'
+import FeedbackButton from './components/FeedbackButton.jsx'
 
 function LoadingScreen() {
   return (
@@ -71,6 +72,7 @@ function MainApp() {
       <main style={{ flex: 1, overflow: 'auto', padding: '36px 40px', background: '#F8F7EF' }}>
         {pages[page]}
       </main>
+      <FeedbackButton />
     </div>
   )
 }
