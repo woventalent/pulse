@@ -1,6 +1,8 @@
-# Woven Time Tracking
+# Woven Time Tracking (Pulse)
 
 Internal time tracking tool for the Woven Research & Insights team. Tracks time logged against client projects with workspace isolation, Microsoft SSO, and reporting.
+
+> **Rebrand note (2026-09-08):** the product is now branded **Pulse** in the UI (logo, page title, `package.json` name) and the GitHub repo was renamed to `woventalent/pulse` — this repo may show up under either name depending on when it was cloned. Production is currently reachable at both `https://time.woventalent.in` (original domain) and `https://pulse.woventalent.in` (new domain, live since the rebrand) — both are routed by the shared nginx-proxy to the same container, so either works. Backend infra (Docker container/image name, the `time_tracking` nginx upstream, `docker-compose.yml`) intentionally keeps its original naming; only the frontend brand and the PM2 app name (`ecosystem.config.cjs`) changed.
 
 ## Features
 
@@ -13,6 +15,7 @@ Internal time tracking tool for the Woven Research & Insights team. Tracks time 
 - **Workspaces** — Each team gets an isolated workspace; users can belong to multiple workspaces; any authenticated user can create a new workspace (becoming its admin); new sign-ups can alternatively join an existing workspace that already has a member sharing their email domain, joining as a regular member. Each page has its own URL route
 - **Settings (Admin)** — Workspace admins manage project types, workspace users/roles, and clients & contacts; a super admin (configured via `SUPER_ADMIN_EMAIL`) can additionally manage all workspaces org-wide
 - **Microsoft SSO** — Azure AD OAuth2 login restricted to the configured tenant domain; dev-login fallback when credentials are not configured
+- **In-app feedback** — A floating feedback widget lets any signed-in user report an issue (module, description, up to 8 pasted/dropped screenshots) without leaving the app; submissions are stored in the `feedback_issues` table and exposed read/write to the internal Konsole tool via `GET/PUT /api/internal/feedback-issues*`, authenticated with a shared `PULSE_ISSUES_KEY` (or legacy `KONSOLE_SERVICE_KEY`)
 
 ## Tech Stack
 
@@ -57,6 +60,8 @@ npm run dev
 Backend runs on `http://localhost:3000`, Vite dev server on `http://localhost:5173` (proxies `/api` and `/auth` to the backend automatically).
 
 When `AZURE_CLIENT_ID` is not set, a dev-login form is shown instead of Microsoft SSO — no Azure credentials needed for local development.
+
+For an even faster local loop, set `BYPASS_SSO=true` / `VITE_BYPASS_SSO=true` in `.env` (ignored when `NODE_ENV=production`) to skip the login form entirely and auto-sign in as `VITE_FORCE_LOGIN_EMAIL` / `VITE_FORCE_LOGIN_NAME` (defaults: `dev@local` / `Dev User`).
 
 ## Production Build & Deployment
 
@@ -126,6 +131,9 @@ Copy `.env.example` to `.env` and fill in:
 | `NODE_ENV` | Set to `production` to enable secure (HTTPS-only) session cookies |
 | `DB_PATH` | Path to the SQLite database file (default `<app dir>/timetracking.db`) — set by `docker-compose.yml` to point at the `db-data` volume |
 | `UPLOAD_DIR` | Directory for uploaded project files (default `<app dir>/uploads`) — set by `docker-compose.yml` to point at the `uploads-data` volume |
+| `BYPASS_SSO` / `VITE_BYPASS_SSO` | Local-only (ignored when `NODE_ENV=production`): set both to `true` to auto-sign in without the dev-login form or Microsoft, using `VITE_FORCE_LOGIN_EMAIL` / `VITE_FORCE_LOGIN_NAME` |
+| `VITE_FORCE_LOGIN_EMAIL` / `VITE_FORCE_LOGIN_NAME` | Identity used by the local SSO bypass above (defaults: `dev@local` / `Dev User`) |
+| `PULSE_ISSUES_KEY` / `KONSOLE_SERVICE_KEY` | Shared secret the internal Konsole tool presents (via `X-Konsole-Service-Key` header or `Authorization: Bearer`) to read/update in-app feedback submissions at `/api/internal/feedback-issues` |
 
 If `AZURE_CLIENT_ID` is not set, the app falls back to a dev-login form.
 
@@ -186,7 +194,8 @@ A full `docker restart nginx-proxy` (rather than a graceful reload) briefly inte
 │   │   └── AuthContext.jsx   # Auth state (user, workspace, MSAuth)
 │   ├── components/
 │   │   ├── Sidebar.jsx
-│   │   └── Modal.jsx
+│   │   ├── Modal.jsx
+│   │   └── FeedbackButton.jsx  # Floating in-app feedback widget (see In-app feedback above)
 │   ├── pages/
 │   │   ├── Login.jsx
 │   │   ├── WorkspaceSelect.jsx
