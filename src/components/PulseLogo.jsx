@@ -1,5 +1,5 @@
 export default function PulseLogo({ size = 'md', theme = 'light' }) {
-  const scales = { sm: 0.7, md: 1, lg: 1.4 }
+  const scales = { sm: 0.7, md: 1, lg: 1.4, nav: 0.85 }
   const s = scales[size] ?? 1
   const textColor = theme === 'dark' ? '#f1f5f9' : '#0f172a'
 
@@ -23,9 +23,9 @@ export default function PulseLogo({ size = 'md', theme = 'light' }) {
       {/* Wordmark */}
       <span style={{
         fontSize: Math.round(20 * s),
-        fontWeight: 800,
+        fontWeight: 700,
         color: textColor,
-        letterSpacing: '-0.5px',
+        letterSpacing: '-0.01em',
         lineHeight: 1,
         fontFamily: 'Outfit, sans-serif',
       }}>

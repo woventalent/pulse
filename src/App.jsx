@@ -14,11 +14,11 @@ function LoadingScreen() {
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: '#0f172a',
+      background: '#F8F7EF',
     }}>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#f8fafc', marginBottom: 8 }}>Pulse</div>
-        <div style={{ fontSize: 13, color: '#475569' }}>Loading…</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: '#0e0e10', marginBottom: 8 }}>Pulse</div>
+        <div style={{ fontSize: 13, color: '#6c6c72' }}>Loading…</div>
       </div>
     </div>
   )
@@ -67,9 +67,9 @@ function MainApp() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div className="app-shell">
       <Sidebar current={page} onNav={handleNav} />
-      <main style={{ flex: 1, overflow: 'auto', padding: '36px 40px', background: '#F8F7EF' }}>
+      <main className="app-main">
         {pages[page]}
       </main>
       <FeedbackButton />
