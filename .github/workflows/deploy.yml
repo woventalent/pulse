@@ -2,14 +2,8 @@ name: Deploy to Production
 
 on:
   workflow_dispatch:
-  # push trigger temporarily disabled since an earlier incident (see the commit
-  # that disabled it for the writeup). This workflow's target, /var/www/time-tracking
-  # + the woven-time-tracking Docker container on host port 3009, is the intended
-  # cutover target for production: nginx-proxy's time_tracking upstream (config at
-  # /opt/alternative-ens-deployment/nginx.production.conf) is being repointed here
-  # from the PM2 process that has served this app until now — see the commit that
-  # made this change for whether that cutover succeeded. Re-enable
-  # `push: branches: [main]` once this path has run stably for a while.
+  push:
+    branches: [main]
 
 jobs:
   deploy:
